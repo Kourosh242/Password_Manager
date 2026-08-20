@@ -33,7 +33,8 @@ public class BackupBridge {
             filename = sanitizeFilename(filename);
             mime = sanitizeMime(mime);
             if (text == null) text = "";
-            if (text.length() > MAX_BYTES) {
+            byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+            if (bytes.length > MAX_BYTES) {
                 return jsonResult(false, "too-large");
             }
 
@@ -53,7 +54,7 @@ public class BackupBridge {
             if (os == null) return jsonResult(false, "open-failed");
 
             try {
-                os.write(text.getBytes(StandardCharsets.UTF_8));
+                os.write(bytes);
             } finally {
                 os.close();
             }

@@ -749,6 +749,12 @@
         },
 
         readFileAsText(file) {
+          // Backups are untrusted input. Reject oversized files before FileReader
+          // allocates their full contents in the renderer process.
+          const maxBytes = 20 * 1024 * 1024;
+          if (!file || !Number.isFinite(file.size) || file.size < 0 || file.size > maxBytes) {
+            return Promise.reject(new Error('FILE_TOO_LARGE'));
+          }
           return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result || ''));
@@ -792,6 +798,9 @@
         const output = { ...target };
         if (!isPlainObject(source)) return output;
         for (const key of Object.keys(source)) {
+          // Settings can be restored from localStorage. Never let attacker-controlled
+          // property names alter object prototypes.
+          if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
           if (isPlainObject(source[key]) && isPlainObject(target[key])) {
             output[key] = mergeDeep(target[key], source[key]);
           } else if (Array.isArray(source[key])) {
@@ -809,6 +818,7 @@
 
       function setPath(obj, path, value) {
         const parts = String(path).split('.');
+        if (parts.some(part => part === '__proto__' || part === 'constructor' || part === 'prototype')) return;
         let current = obj;
         for (let i = 0; i < parts.length - 1; i++) {
           if (!isPlainObject(current[parts[i]])) current[parts[i]] = {};
@@ -1110,8 +1120,11 @@
             envelope.kdf.iterations >= 10000 &&
             envelope.kdf.iterations <= 2000000 &&
             typeof envelope.kdf.saltB64 === 'string' &&
+            envelope.kdf.saltB64.length >= 20 && envelope.kdf.saltB64.length <= 128 &&
             typeof envelope.ivB64 === 'string' &&
-            typeof envelope.dataB64 === 'string'
+            envelope.ivB64.length >= 16 && envelope.ivB64.length <= 128 &&
+            typeof envelope.dataB64 === 'string' &&
+            envelope.dataB64.length >= 24 && envelope.dataB64.length <= (20 * 1024 * 1024 * 4 / 3 + 8)
           );
         },
 
@@ -1178,6 +1191,11 @@
           const salt = Utils.base64ToUint8(envelope.kdf.saltB64);
           const iv = Utils.base64ToUint8(envelope.ivB64);
           const data = Utils.base64ToUint8(envelope.dataB64);
+          // Envelopes written by this application always use a 128-bit salt,
+          // a 96-bit GCM nonce, and at least a 128-bit authentication tag.
+          if (salt.length !== 16 || iv.length !== 12 || data.length < 16 || data.length > 20 * 1024 * 1024) {
+            throw new Error('INVALID_ENVELOPE');
+          }
           const key = await this.deriveKey(password, salt, envelope.kdf.iterations);
           const plainBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
           const plain = JSON.parse(Utils.decoder.decode(plainBuffer));

@@ -32,21 +32,24 @@ if (!gotLock) {
 Menu.setApplicationMenu(null);
 
 function isHttpUrl(url) {
-  return /^https?:/i.test(String(url || ''));
+  try {
+    const parsed = new URL(String(url || ''));
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 function isAllowedFileUrl(url) {
+  // The renderer has no reason to navigate to any bundled file other than its
+  // entry document. Restricting this prevents local-file navigation gadgets.
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'file:') return false;
+    const expected = path.resolve(__dirname, 'app', 'Index.html');
     let filePath = decodeURIComponent(parsed.pathname);
-    if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
-      filePath = filePath.slice(1);
-    }
-    const resolved = path.resolve(filePath);
-    const root = path.resolve(__dirname);
-    const rel = path.relative(root, resolved);
-    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+    if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) filePath = filePath.slice(1);
+    return path.resolve(filePath) === expected;
   } catch {
     return false;
   }
@@ -141,7 +144,10 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-ipcMain.handle('app-info', () => ({ version: app.getVersion() }));
+ipcMain.handle('app-info', (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return null;
+  return { version: app.getVersion() };
+});
 
 ipcMain.handle('save-text-file', async (event, payload) => {
   try {
@@ -155,13 +161,15 @@ ipcMain.handle('save-text-file', async (event, payload) => {
     const text = String(payload && payload.text != null ? payload.text : '');
     if (text.length > MAX_BACKUP_CHARS) return { ok: false, error: 'too-large' };
 
-    const mime = String((payload && payload.mime) || 'application/json');
-    const ext = mime === 'application/json' ? 'json' : path.extname(filename).replace('.', '') || 'txt';
+    // This privileged bridge only exports encrypted JSON backups. Do not allow
+    // a renderer-controlled MIME type or extension to broaden its file-writing API.
+    const mime = 'application/json';
+    if (!filename.toLowerCase().endsWith('.json')) filename = `${filename}.json`;
 
     const result = await dialog.showSaveDialog(mainWindow, {
       title: 'ذخیرهٔ فایل پشتیبان',
       defaultPath: path.join(app.getPath('downloads'), filename),
-      filters: [{ name: ext.toUpperCase(), extensions: [ext] }]
+      filters: [{ name: 'JSON', extensions: ['json'] }]
     });
 
     if (result.canceled || !result.filePath) return { ok: false, canceled: true };
