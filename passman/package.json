@@ -1,0 +1,68 @@
+{
+  "name": "offline-password-manager",
+  "productName": "Offline Password Manager",
+  "version": "1.0.1",
+  "description": "مدیر رمز عبور آفلاین — Offline Password Manager (Korosh and Luna)",
+  "main": "main.js",
+  "author": "Korosh and Luna",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "22.3.27",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "com.korosh.offlinepasswordmanager",
+    "productName": "Offline Password Manager",
+    "asar": true,
+    "compression": "normal",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "resources/icon.png",
+      "resources/icon.ico",
+      "package.json"
+    ],
+    "afterPack": "afterPack.js",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "OfflinePasswordManager-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "مدیر رمز عبور آفلاین",
+      "uninstallDisplayName": "Offline Password Manager (مدیر رمز عبور آفلاین)",
+      "installerLanguages": [
+        "en_US"
+      ],
+      "language": "1033",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    }
+  }
+}

@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.korosh.offlinepasswordmanager'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.korosh.offlinepasswordmanager'
+        minSdk 29          // Android 10
+        targetSdk 36       // Android 16
+        versionCode 4
+        versionName '1.0.3'
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../keystore/opm-release.keystore')
+            storePassword 'OpmSecure2026'
+            keyAlias 'opm'
+            keyPassword 'OpmSecure2026'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            applicationIdSuffix '.debug'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
