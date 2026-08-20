@@ -75,7 +75,7 @@ public class MainActivity extends Activity {
         settings.setSupportMultipleWindows(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
-        settings.setSafeBrowsingEnabled(false);
+        settings.setSafeBrowsingEnabled(true);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(false);
         settings.setAllowFileAccessFromFileURLs(false);
@@ -184,7 +184,17 @@ public class MainActivity extends Activity {
     }
 
     private static boolean isAssetUrl(String url) {
-        return url != null && url.startsWith(ASSET_PREFIX);
+        // startsWith alone would accept lookalikes such as android_asset_evil.
+        // Only the exact asset namespace may reach the WebView or JS bridge.
+        if (url == null) return false;
+        try {
+            Uri uri = Uri.parse(url);
+            String path = uri.getPath();
+            return "file".equalsIgnoreCase(uri.getScheme())
+                    && path != null && (path.equals("/android_asset") || path.startsWith("/android_asset/"));
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static boolean isHttpUrl(String url) {
