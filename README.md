@@ -27,8 +27,8 @@
 - بدون مجوز INTERNET روی اندروید؛ درخواست‌های شبکه در WebView و Electron مسدود می‌شوند
 - CSP سخت‌گیرانه، بدون منبع خارجی
 - بکاپ سیستم اندروید غیرفعال است
-- کلید امضای APK **داخل مخزن نیست** — هر توسعه‌دهنده کلید خودش را محلی می‌سازد
 
+- 
 جزئیات: [SECURITY.md](SECURITY.md)
 
 ## ساختار
@@ -44,18 +44,8 @@ passman/           نسخهٔ ویندوز / Electron
 
 ```bash
 cd passman-android
-# اختیاری: keystore.properties را از روی example بسازید تا APK امضا شود
-./gradlew assembleRelease
-```
 
-**ویندوز / دسکتاپ:**
 
-```bash
-cd passman
-npm install
-npm start
-npm run dist
-```
 
 مستندات کامل:
 
