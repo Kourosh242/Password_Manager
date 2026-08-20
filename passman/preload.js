@@ -6,8 +6,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveTextFile: (payload) => ipcRenderer.invoke('save-text-file', payload),
   getAppInfo: () => ipcRenderer.invoke('app-info'),
   onAppHidden: (callback) => {
-    ipcRenderer.on('app-hidden', () => {
+    const listener = () => {
       try { callback(); } catch { /* ignore */ }
-    });
+    };
+    ipcRenderer.on('app-hidden', listener);
+    return () => ipcRenderer.removeListener('app-hidden', listener);
   }
 });

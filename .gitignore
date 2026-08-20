@@ -1,0 +1,37 @@
+# Secrets — never commit signing keys or passwords
+*.jks
+*.keystore
+*.p12
+*.pem
+keystore.properties
+local.properties
+**/keystore/*.keystore
+**/keystore/*.jks
+!**/keystore/README.md
+
+# Android / Gradle
+.gradle/
+**/build/
+captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+.idea/
+*.iml
+.cxx/
+
+# Node / Electron
+node_modules/
+passman/release/
+passman/dist/
+npm-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.env
+.env.*
