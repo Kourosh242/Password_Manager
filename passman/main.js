@@ -12,10 +12,10 @@ const fs = require('fs');
 
 const APP_ID = 'com.korosh.offlinepasswordmanager';
 const APP_TITLE = 'مدیر رمز عبور آفلاین';
+const MAX_BACKUP_CHARS = 20 * 1024 * 1024;
 
 let mainWindow = null;
 
-// ---- single instance ----
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -29,8 +29,28 @@ if (!gotLock) {
   });
 }
 
-// No application menu: cleaner window + removes accidental DevTools/Reload shortcuts.
 Menu.setApplicationMenu(null);
+
+function isHttpUrl(url) {
+  return /^https?:/i.test(String(url || ''));
+}
+
+function isAllowedFileUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'file:') return false;
+    let filePath = decodeURIComponent(parsed.pathname);
+    if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
+      filePath = filePath.slice(1);
+    }
+    const resolved = path.resolve(filePath);
+    const root = path.resolve(__dirname);
+    const rel = path.relative(root, resolved);
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  } catch {
+    return false;
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -51,32 +71,30 @@ function createWindow() {
       spellcheck: false,
       webSecurity: true,
       allowRunningInsecureContent: false,
-      experimentalFeatures: false
+      experimentalFeatures: false,
+      enableWebSQL: false,
+      navigateOnDragDrop: false
     }
   });
 
-  // Keep the app fully offline and contained:
-  //  - block every http/https request inside the app
-  //  - external links (e.g. the stored website of an entry) open in the user's
-  //    default system browser instead of navigating the app window
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) shell.openExternal(url);
+    if (isHttpUrl(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('file://')) {
-      event.preventDefault();
-      if (/^https?:/i.test(url)) shell.openExternal(url);
-    }
+    if (isAllowedFileUrl(url)) return;
+    event.preventDefault();
+    if (isHttpUrl(url)) shell.openExternal(url);
   });
 
   mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  mainWindow.webContents.on('devtools-opened', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.closeDevTools();
+  });
 
   mainWindow.on('page-title-updated', (event) => event.preventDefault());
 
-  // "Lock when hidden": on desktop, minimizing/hiding does NOT fire the page
-  // visibilitychange event, so we notify the renderer explicitly.
   const notifyHidden = () => {
     try {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app-hidden');
@@ -94,14 +112,23 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'app', 'Index.html'));
 }
 
+function denyPermission(_webContents, _permission, callback) {
+  if (typeof callback === 'function') callback(false);
+}
+
 app.whenReady().then(() => {
   if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
 
-  // Hard offline policy: cancel every http/https request app-wide.
-  session.defaultSession.webRequest.onBeforeRequest(
+  const ses = session.defaultSession;
+  ses.webRequest.onBeforeRequest(
     { urls: ['http://*/*', 'https://*/*'] },
     (_details, callback) => callback({ cancel: true })
   );
+  ses.setPermissionRequestHandler(denyPermission);
+  ses.setPermissionCheckHandler(() => false);
+  if (typeof ses.setDevicePermissionHandler === 'function') {
+    ses.setDevicePermissionHandler(() => false);
+  }
 
   createWindow();
 
@@ -114,16 +141,21 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-// ---- app info (version display in the About page) ----
 ipcMain.handle('app-info', () => ({ version: app.getVersion() }));
 
-// ---- backup export: native "Save as" dialog (writes the encrypted JSON file) ----
-ipcMain.handle('save-text-file', async (_event, payload) => {
+ipcMain.handle('save-text-file', async (event, payload) => {
   try {
-    const filename = String(payload && payload.filename ? payload.filename : 'backup.json');
-    const text = String(payload && payload.text != null ? payload.text : '');
-    const mime = String((payload && payload.mime) || 'application/json');
+    if (!mainWindow || event.sender !== mainWindow.webContents) {
+      return { ok: false, error: 'unauthorized' };
+    }
 
+    let filename = String(payload && payload.filename ? payload.filename : 'backup.json');
+    filename = path.basename(filename).replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_').slice(0, 120)
+      || 'backup.json';
+    const text = String(payload && payload.text != null ? payload.text : '');
+    if (text.length > MAX_BACKUP_CHARS) return { ok: false, error: 'too-large' };
+
+    const mime = String((payload && payload.mime) || 'application/json');
     const ext = mime === 'application/json' ? 'json' : path.extname(filename).replace('.', '') || 'txt';
 
     const result = await dialog.showSaveDialog(mainWindow, {

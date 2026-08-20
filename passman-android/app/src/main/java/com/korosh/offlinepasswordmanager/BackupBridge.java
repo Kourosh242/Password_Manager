@@ -18,6 +18,9 @@ import java.nio.charset.StandardCharsets;
  */
 public class BackupBridge {
 
+    private static final int MAX_BYTES = 20 * 1024 * 1024;
+    private static final int MAX_NAME = 120;
+
     private final Activity activity;
 
     public BackupBridge(Activity activity) {
@@ -27,9 +30,12 @@ public class BackupBridge {
     @JavascriptInterface
     public String saveTextFile(String filename, String text, String mime) {
         try {
-            if (filename == null || filename.trim().isEmpty()) filename = "backup.json";
-            if (mime == null || mime.trim().isEmpty()) mime = "application/json";
+            filename = sanitizeFilename(filename);
+            mime = sanitizeMime(mime);
             if (text == null) text = "";
+            if (text.length() > MAX_BYTES) {
+                return jsonResult(false, "too-large");
+            }
 
             ContentResolver resolver = activity.getContentResolver();
 
@@ -62,17 +68,33 @@ public class BackupBridge {
         }
     }
 
+    private String sanitizeFilename(String filename) {
+        if (filename == null) filename = "";
+        String name = filename.trim().replace('\\', '/');
+        int slash = name.lastIndexOf('/');
+        if (slash >= 0) name = name.substring(slash + 1);
+        name = name.replaceAll("[^A-Za-z0-9._\\-\\u0600-\\u06FF]", "_");
+        if (name.isEmpty() || ".".equals(name) || "..".equals(name)) {
+            name = "backup.json";
+        }
+        if (name.length() > MAX_NAME) name = name.substring(0, MAX_NAME);
+        return name;
+    }
+
+    private String sanitizeMime(String mime) {
+        if (mime == null) return "application/json";
+        mime = mime.trim().toLowerCase();
+        if ("application/json".equals(mime) || "text/plain".equals(mime)
+                || "application/octet-stream".equals(mime)) {
+            return mime;
+        }
+        return "application/json";
+    }
+
     private String jsonResult(boolean ok, String message) {
         return "{\"ok\":" + ok + ",\"error\":\"" + escape(String.valueOf(message)) + "\"}";
     }
 
-    /**
-     * FIX: the old version only handled backslashes and turned double quotes into
-     * single quotes. A filename or an exception message containing a newline, tab or
-     * other control character produced malformed JSON, so JSON.parse() on the web side
-     * threw and a successful save was reported to the user as a failure.
-     * This is now a correct JSON string escaper.
-     */
     private String escape(String value) {
         if (value == null) return "";
 
