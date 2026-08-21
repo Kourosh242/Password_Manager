@@ -34,21 +34,6 @@
 ## ساختار
 
 ```
-passman-android/   نسخهٔ اندروید (راهنما: passman-android/README-سورس.md)
+passman-android/   نسخهٔ اندروید / android studio
 passman/           نسخهٔ ویندوز / Electron
 ```
-
-## ساخت
-
-**اندروید** (JDK 17+ و Android SDK):
-
-```bash
-cd passman-android
-
-
-
-مستندات کامل:
-
-- [اندروید — راهنمای سورس](passman-android/README-سورس.md)
-- [اندروید — توضیح کامل کد](passman-android/توضیحات-کامل-کد.md)
-- [ویندوز — توضیح کامل کد](passman/توضیحات-کامل-کد-ویندوز.md)
